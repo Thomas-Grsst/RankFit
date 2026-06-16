@@ -1,6 +1,9 @@
 // ============================================================
 //  APPLICATION PRINCIPALE
+//  (encapsulé dans une IIFE pour ne pas entrer en conflit avec
+//   les variables globales des autres scripts : Auth, RANKS, etc.)
 // ============================================================
+(function () {
 const { Auth, Profiles, Perfs, DEMO } = window.Store;
 const { computePerformance, aggregateScores, RANKS, rankForScore } = window.RankEngine;
 
@@ -406,8 +409,11 @@ async function loadSession() {
   render();
 })();
 
-// expose pour les onclick inline
+// expose pour les onclick inline (les fonctions sont dans l'IIFE,
+// on les rend accessibles globalement pour les attributs onclick).
 Object.assign(window, {
   nav, savePerf, saveProfile, doAuth, doSignOut,
   setAuthMode, changeRankingExo,
 });
+
+})(); // fin de l'IIFE
