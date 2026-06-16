@@ -9,8 +9,9 @@
 // ============================================================
 
 window.APP_CONFIG = {
-  SUPABASE_URL: "https://VOTRE-PROJET.supabase.co",
-  SUPABASE_ANON_KEY: "VOTRE_CLE_ANON_PUBLIC",
+  SUPABASE_URL: "https://gycyqlzllcdzgevqymjx.supabase.co",
+  SUPABASE_ANON_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5Y3lxbHpsbGNkemdldnF5bWp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzQ2NDEsImV4cCI6MjA5NzIxMDY0MX0.dvnVWz8VtjLKmTC8tRwt04fHykdgYQFKhicbmmbCZBw",
 };
 
 // Mode démo : si les clés ne sont pas configurées, l'app fonctionne

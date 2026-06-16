@@ -5,14 +5,30 @@
 //  pour pouvoir tester l'app immédiatement.
 // ============================================================
 
-const DEMO = window.APP_CONFIG.DEMO_MODE;
+let DEMO = window.APP_CONFIG.DEMO_MODE;
 let sb = null;
 
+// Nettoie l'URL : on ne garde que la base https://xxxx.supabase.co
+// (au cas où on aurait collé l'URL de l'API REST .../rest/v1/).
+function cleanUrl(u) {
+  const m = String(u).match(/^(https:\/\/[^\/]+)/);
+  return m ? m[1] : String(u).replace(/\/+$/, "");
+}
+
 if (!DEMO) {
-  sb = window.supabase.createClient(
-    window.APP_CONFIG.SUPABASE_URL,
-    window.APP_CONFIG.SUPABASE_ANON_KEY
-  );
+  try {
+    if (!window.supabase || !window.supabase.createClient) {
+      throw new Error("La librairie Supabase n'a pas pu être chargée (connexion bloquée ?).");
+    }
+    sb = window.supabase.createClient(
+      cleanUrl(window.APP_CONFIG.SUPABASE_URL),
+      window.APP_CONFIG.SUPABASE_ANON_KEY
+    );
+  } catch (e) {
+    console.error("Init Supabase échouée, bascule en mode démo :", e);
+    DEMO = true; // on ne laisse jamais un écran noir : repli sur le mode local
+    window.__SUPABASE_ERROR__ = e.message;
+  }
 }
 
 // ---------- Stockage local (mode démo) ----------
@@ -175,4 +191,4 @@ const Perfs = {
   },
 };
 
-window.Store = { DEMO, Auth, Profiles, Perfs };
+window.Store = { get DEMO() { return DEMO; }, Auth, Profiles, Perfs };

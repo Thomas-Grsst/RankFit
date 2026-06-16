@@ -15,7 +15,9 @@ create table if not exists public.profiles (
 
 -- ----------- Table des performances -----------
 create table if not exists public.performances (
-  user_id     uuid references auth.users (id) on delete cascade,
+  -- FK vers profiles (et non auth.users) pour que le classement
+  -- puisse récupérer le pseudo via la jointure profiles(pseudo).
+  user_id     uuid references public.profiles (id) on delete cascade,
   exercise_id text not null,
   value       numeric not null,
   score       int not null,
