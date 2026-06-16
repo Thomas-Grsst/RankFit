@@ -90,10 +90,15 @@ button.link { background: none; border: none; color: var(--accent); cursor: poin
   width: clamp(130px, 20vw, 200px); height: auto;
   filter: drop-shadow(0 12px 24px rgba(0,0,0,.4));
 }
-.body-base { fill: #232a34; }
-.muscle { stroke: #0e1116; stroke-width: 1.5; transition: fill .25s, transform .15s; fill: #3a404a; }
-.muscle:hover { transform: scale(1.03); transform-origin: center; }
-.muscle.is-ranked { filter: saturate(1.1); }
+.body-host::before {
+  content: ""; position: absolute; inset: -10% 0 0 0;
+  background: radial-gradient(closest-side, rgba(120,150,255,.10), transparent 70%);
+  pointer-events: none;
+}
+.body-base { fill: #2a313c; stroke: #10141b; stroke-width: 0.5; }
+.muscle { stroke: #10141b; stroke-width: 0.5; fill: #39414e; transition: fill .25s, fill-opacity .25s; }
+.muscle:hover { stroke: #cfe0ff; stroke-width: 0.8; }
+.muscle.is-ranked { filter: saturate(1.12) brightness(1.04); }
 .muscle-tip {
   position: absolute; pointer-events: none; opacity: 0; transition: opacity .12s;
   background: #0b0e13; border: 1px solid var(--line); color: var(--text);
