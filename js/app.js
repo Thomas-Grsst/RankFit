@@ -4,13 +4,15 @@
 //   les variables globales des autres scripts : Auth, RANKS, etc.)
 // ============================================================
 (function () {
-const { Auth, Profiles, Perfs, DEMO } = window.Store;
+const { Auth, Profiles, Perfs, Habits, DEMO } = window.Store;
 const { computePerformance, aggregateScores, RANKS, rankForScore } = window.RankEngine;
 
 const state = {
   user: null,
   profile: null,
   perfs: {},      // { exerciseId: {value, score} }
+  habits: [],     // [ {id, name} ]
+  habitLogs: {},  // { "habitId|YYYY-MM-DD": true }
   view: "home",
 };
 
@@ -63,7 +65,7 @@ function header() {
     <nav class="menu">
       <button class="${state.view === "home" ? "active" : ""}" onclick="nav('home')">Accueil</button>
       <button class="${state.view === "calc" ? "active" : ""}" onclick="nav('calc')">Mes exercices</button>
-      <button class="${state.view === "ranking" ? "active" : ""}" onclick="nav('ranking')">Classement</button>
+      <button class="${state.view === "tasks" ? "active" : ""}" onclick="nav('tasks')">Tâches</button>
       ${state.user
         ? `<button class="${state.view === "profile" ? "active" : ""}" onclick="nav('profile')">Profil</button>
            <button class="ghost" onclick="doSignOut()">Déconnexion</button>`
@@ -93,7 +95,7 @@ function viewHome() {
             : `<p class="muted">Renseigne tes performances pour colorer ton avatar.</p>`}
           <div class="hero-actions">
             <button class="primary lg" onclick="nav('calc')">${hasData ? "Mettre à jour mes perfs" : "Commencer"}</button>
-            <button class="ghost lg" onclick="nav('ranking')">Voir le classement</button>
+            <button class="ghost lg" onclick="nav('tasks')">Mes tâches du jour</button>
           </div>
           ${renderLegend()}
         </div>
@@ -258,54 +260,138 @@ async function recomputeAll() {
 }
 
 // ============================================================
-//  VUE : CLASSEMENT
+//  VUE : TÂCHES QUOTIDIENNES (dashboard d'habitudes)
 // ============================================================
-let rankingExo = "bench_barbell";
-function viewRanking() {
-  const options = window.MUSCLES.map((m) => {
-    const exos = (window.EXERCISES_BY_MUSCLE[m.key] || [])
-      .map((e) => `<option value="${e.id}" ${e.id === rankingExo ? "selected" : ""}>${e.name}</option>`)
-      .join("");
-    return `<optgroup label="${m.label}">${exos}</optgroup>`;
+const DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]; // Lun -> Dim
+const MONTHS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+// Lundi -> Dimanche de la semaine en cours.
+function currentWeek() {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const dow = (now.getDay() + 6) % 7; // 0 = lundi
+  const monday = new Date(now); monday.setDate(now.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    return { date: d, key: dateKey(d) };
+  });
+}
+function isDone(habitId, key) { return !!state.habitLogs[`${habitId}|${key}`]; }
+
+function viewTasks() {
+  if (!state.user) return viewAuth("Connecte-toi pour gérer tes tâches quotidiennes.");
+
+  const week = currentWeek();
+  const todayKey = dateKey(new Date());
+  const first = week[0].date, last = week[6].date;
+  const weekLabel = `Semaine du ${first.getDate()} ${MONTHS[first.getMonth()]} au ${last.getDate()} ${MONTHS[last.getMonth()]}`;
+
+  // En-tête des jours
+  const dayHeads = week.map((d, i) => {
+    const today = d.key === todayKey;
+    return `<th class="${today ? "is-today" : ""}">
+      <span class="dh-day">${DAY_LABELS[i]}</span><span class="dh-num">${d.date.getDate()}</span>
+    </th>`;
   }).join("");
+
+  // Lignes de tâches
+  const rows = state.habits.map((h) => {
+    const cells = week.map((d) => {
+      const done = isDone(h.id, d.key);
+      const future = d.date > new Date();
+      const today = d.key === todayKey;
+      return `<td class="${today ? "is-today" : ""}">
+        <label class="chk ${done ? "on" : ""} ${future ? "disabled" : ""}">
+          <input type="checkbox" ${done ? "checked" : ""} ${future ? "disabled" : ""}
+            onchange="toggleHabit('${h.id}','${d.key}', this.checked)"/>
+          <span class="chk-box"></span>
+        </label>
+      </td>`;
+    }).join("");
+    return `<tr>
+      <td class="hname">${escapeHtml(h.name)}</td>
+      ${cells}
+      <td><button class="del" title="Supprimer" onclick="removeHabit('${h.id}')">×</button></td>
+    </tr>`;
+  }).join("");
+
+  // Résumé du jour
+  const total = state.habits.length;
+  const doneToday = state.habits.filter((h) => isDone(h.id, todayKey)).length;
+  const pct = total ? Math.round((doneToday / total) * 100) : 0;
 
   app().innerHTML = `
     ${header()}
-    <main class="container narrow">
-      <div class="page-head"><h2>Classement</h2>
-        <p class="muted">Meilleurs scores par exercice (tous niveaux confondus).</p></div>
-      <label class="select-wrap">Exercice
-        <select id="rk-select" onchange="changeRankingExo()">${options}</select></label>
-      <div id="rk-list" class="board">Chargement…</div>
+    <main class="container">
+      <div class="page-head">
+        <h2>Tâches quotidiennes</h2>
+        <p class="muted">${weekLabel} · les cases se réinitialisent chaque jour.</p>
+      </div>
+
+      <div class="dash-cards">
+        <div class="dash-card">
+          <span class="dash-val" id="today-done">${doneToday}/${total}</span>
+          <span class="dash-lbl">faites aujourd'hui</span>
+        </div>
+        <div class="dash-card">
+          <div class="ring" id="today-ring" style="--p:${pct}"><span>${pct}%</span></div>
+          <span class="dash-lbl">de la journée</span>
+        </div>
+      </div>
+
+      <form class="add-habit" onsubmit="addHabit(event)">
+        <input id="new-habit" maxlength="40" placeholder="Nouvelle tâche (ex : Boire 2L, Muscu, Lire…)"/>
+        <button class="primary" type="submit">Ajouter</button>
+      </form>
+
+      ${total === 0
+        ? `<p class="muted empty">Aucune tâche pour l'instant. Ajoute-en une ci-dessus 👆</p>`
+        : `<div class="grid-wrap"><table class="habit-grid">
+            <thead><tr><th class="hcol">Tâche</th>${dayHeads}<th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>`}
     </main>
     ${footer()}`;
-  loadLeaderboard();
 }
 
-function changeRankingExo() {
-  rankingExo = $("#rk-select").value;
-  loadLeaderboard();
-}
-
-async function loadLeaderboard() {
-  const host = $("#rk-list");
+async function addHabit(ev) {
+  ev.preventDefault();
+  const inp = $("#new-habit");
+  const name = inp.value.trim();
+  if (!name) return;
+  inp.value = "";
   try {
-    const rows = await Perfs.leaderboard(rankingExo);
-    const exo = window.EXERCISE_BY_ID[rankingExo];
-    const unit = window.UNIT_LABELS[exo.unit].suffix;
-    if (!rows.length) { host.innerHTML = `<p class="muted">Aucune performance enregistrée pour cet exercice.</p>`; return; }
-    host.innerHTML = rows.map((r, i) => {
-      const rank = rankForScore(r.score);
-      return `<div class="board-row">
-        <span class="pos">${i + 1}</span>
-        <span class="who">${escapeHtml(r.pseudo)}</span>
-        <span class="val">${r.value} ${unit}</span>
-        ${rankBadge(rank, r.score)}
-      </div>`;
-    }).join("");
-  } catch (e) {
-    host.innerHTML = `<p class="msg">Erreur : ${e.message}</p>`;
-  }
+    const h = await Habits.add(state.user.id, name);
+    state.habits.push(h);
+    viewTasks();
+  } catch (e) { toast("Erreur : " + e.message); }
+}
+
+async function removeHabit(id) {
+  state.habits = state.habits.filter((h) => h.id !== id);
+  Object.keys(state.habitLogs).forEach((k) => { if (k.startsWith(id + "|")) delete state.habitLogs[k]; });
+  viewTasks();
+  try { await Habits.remove(state.user.id, id); }
+  catch (e) { toast("Erreur : " + e.message); }
+}
+
+async function toggleHabit(habitId, key, checked) {
+  const k = `${habitId}|${key}`;
+  if (checked) state.habitLogs[k] = true; else delete state.habitLogs[k];
+  updateTodaySummary();
+  try { await Habits.toggle(state.user.id, habitId, key, checked); }
+  catch (e) { toast("Erreur : " + e.message); }
+}
+
+function updateTodaySummary() {
+  const todayKey = dateKey(new Date());
+  const total = state.habits.length;
+  const doneToday = state.habits.filter((h) => isDone(h.id, todayKey)).length;
+  const pct = total ? Math.round((doneToday / total) * 100) : 0;
+  const d = $("#today-done"); if (d) d.textContent = `${doneToday}/${total}`;
+  const r = $("#today-ring"); if (r) { r.style.setProperty("--p", pct); r.querySelector("span").textContent = pct + "%"; }
 }
 
 // ============================================================
@@ -359,6 +445,7 @@ async function doAuth() {
 async function doSignOut() {
   await Auth.signOut();
   state.user = null; state.profile = null; state.perfs = {};
+  state.habits = []; state.habitLogs = {};
   nav("home");
 }
 
@@ -389,7 +476,7 @@ function render() {
   switch (state.view) {
     case "calc": return viewCalc();
     case "profile": return viewProfile();
-    case "ranking": return viewRanking();
+    case "tasks": return viewTasks();
     case "auth": return viewAuth();
     default: return viewHome();
   }
@@ -400,6 +487,10 @@ async function loadSession() {
   if (state.user) {
     state.profile = await Profiles.get(state.user.id);
     state.perfs = await Perfs.list(state.user.id);
+    try {
+      state.habits = await Habits.list(state.user.id);
+      state.habitLogs = await Habits.logs(state.user.id);
+    } catch (e) { console.warn("habits", e); state.habits = []; state.habitLogs = {}; }
   }
 }
 
@@ -412,8 +503,8 @@ async function loadSession() {
 // expose pour les onclick inline (les fonctions sont dans l'IIFE,
 // on les rend accessibles globalement pour les attributs onclick).
 Object.assign(window, {
-  nav, savePerf, saveProfile, doAuth, doSignOut,
-  setAuthMode, changeRankingExo,
+  nav, savePerf, saveProfile, doAuth, doSignOut, setAuthMode,
+  addHabit, removeHabit, toggleHabit,
 });
 
 })(); // fin de l'IIFE

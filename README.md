@@ -4,6 +4,9 @@ Site qui attribue un **rang** (Bronze → Olympien) à chaque utilisateur sur ch
 en fonction de son **sexe**, son **poids** et sa **taille**. La page d'accueil affiche un
 **personnage** dont chaque muscle se colore selon ton rang.
 
+Il inclut aussi un **suivi de tâches quotidiennes** (grille hebdomadaire à cocher Lun→Dim,
+qui se réinitialise chaque jour) avec un petit tableau de bord de progression.
+
 100 % HTML / CSS / JavaScript. Hébergement **Netlify** (gratuit) + base **Supabase** (gratuit).
 
 ---

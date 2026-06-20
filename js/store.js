@@ -191,4 +191,73 @@ const Perfs = {
   },
 };
 
-window.Store = { get DEMO() { return DEMO; }, Auth, Profiles, Perfs };
+// ============================================================
+//  TÂCHES QUOTIDIENNES (habitudes)
+//  habits  : { id, name }
+//  logs    : map "habitId|YYYY-MM-DD" -> true (case cochée)
+// ============================================================
+function demoHabitsKey(uid) { return "ranke_habits_" + uid; }
+function demoHabitLogsKey(uid) { return "ranke_hlogs_" + uid; }
+
+const Habits = {
+  async list(uid) {
+    if (DEMO) return LS.get(demoHabitsKey(uid), []);
+    const { data, error } = await sb.from("habits").select("*").eq("user_id", uid).order("created_at");
+    if (error) throw error;
+    return (data || []).map((h) => ({ id: h.id, name: h.name }));
+  },
+
+  async add(uid, name) {
+    if (DEMO) {
+      const list = LS.get(demoHabitsKey(uid), []);
+      const h = { id: "h" + Date.now(), name };
+      list.push(h);
+      LS.set(demoHabitsKey(uid), list);
+      return h;
+    }
+    const { data, error } = await sb.from("habits").insert({ user_id: uid, name }).select().single();
+    if (error) throw error;
+    return { id: data.id, name: data.name };
+  },
+
+  async remove(uid, id) {
+    if (DEMO) {
+      LS.set(demoHabitsKey(uid), LS.get(demoHabitsKey(uid), []).filter((h) => h.id !== id));
+      const logs = LS.get(demoHabitLogsKey(uid), {});
+      Object.keys(logs).forEach((k) => { if (k.startsWith(id + "|")) delete logs[k]; });
+      LS.set(demoHabitLogsKey(uid), logs);
+      return;
+    }
+    const { error } = await sb.from("habits").delete().eq("id", id).eq("user_id", uid);
+    if (error) throw error;
+  },
+
+  async logs(uid) {
+    if (DEMO) return LS.get(demoHabitLogsKey(uid), {});
+    const { data, error } = await sb.from("habit_logs").select("habit_id, day").eq("user_id", uid);
+    if (error) throw error;
+    const map = {};
+    (data || []).forEach((r) => { map[r.habit_id + "|" + r.day] = true; });
+    return map;
+  },
+
+  async toggle(uid, habitId, day, done) {
+    if (DEMO) {
+      const logs = LS.get(demoHabitLogsKey(uid), {});
+      const k = habitId + "|" + day;
+      if (done) logs[k] = true; else delete logs[k];
+      LS.set(demoHabitLogsKey(uid), logs);
+      return;
+    }
+    if (done) {
+      const { error } = await sb.from("habit_logs")
+        .upsert({ user_id: uid, habit_id: habitId, day }, { onConflict: "habit_id,day" });
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from("habit_logs").delete().eq("habit_id", habitId).eq("day", day);
+      if (error) throw error;
+    }
+  },
+};
+
+window.Store = { get DEMO() { return DEMO; }, Auth, Profiles, Perfs, Habits };

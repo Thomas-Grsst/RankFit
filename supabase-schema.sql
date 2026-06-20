@@ -85,3 +85,32 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ============================================================
+--  TÂCHES QUOTIDIENNES (habitudes)
+-- ============================================================
+create table if not exists public.habits (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references public.profiles (id) on delete cascade,
+  name        text not null,
+  created_at  timestamptz default now()
+);
+
+create table if not exists public.habit_logs (
+  user_id   uuid references public.profiles (id) on delete cascade,
+  habit_id  uuid references public.habits (id) on delete cascade,
+  day       date not null,
+  primary key (habit_id, day)
+);
+
+alter table public.habits      enable row level security;
+alter table public.habit_logs  enable row level security;
+
+-- Chacun ne voit et ne gère QUE ses propres tâches.
+drop policy if exists "habits_own" on public.habits;
+create policy "habits_own" on public.habits
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "habit_logs_own" on public.habit_logs;
+create policy "habit_logs_own" on public.habit_logs
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
