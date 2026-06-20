@@ -125,8 +125,8 @@ function viewCalc() {
   if (!state.user) return viewAuth("Connecte-toi pour enregistrer tes performances.");
   if (!state.profile) return viewProfile(true);
 
-  const groups = window.MUSCLES.map((m) => {
-    const exos = window.EXERCISES_BY_MUSCLE[m.key] || [];
+  const groups = window.GROUP_ORDER.map((g) => {
+    const exos = window.EXERCISES_BY_GROUP[g] || [];
     const rows = exos.map((e) => {
       const p = state.perfs[e.id];
       const unit = window.UNIT_LABELS[e.unit];
@@ -144,12 +144,13 @@ function viewCalc() {
         </div>`;
     }).join("");
 
-    const mr = muscleRanks()[m.key];
+    const scores = exos.map((e) => state.perfs[e.id]?.score).filter((s) => typeof s === "number");
+    const gr = aggregateScores(scores);
     return `
       <details class="muscle-card" open>
         <summary>
-          <span class="muscle-title">${m.label}</span>
-          ${mr ? rankBadge(rankForScore(mr.score), mr.score) : `<span class="muted small">Non classé</span>`}
+          <span class="muscle-title">${g}</span>
+          ${gr ? rankBadge(gr.rank, gr.score) : `<span class="muted small">Non classé</span>`}
         </summary>
         <div class="exo-list">
           <div class="exo-row head">
